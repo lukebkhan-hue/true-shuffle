@@ -614,7 +614,7 @@
     el.plName.textContent = S.playlistTitle || (usingBuiltin ? builtin.title : S.playlistId);
     const n = S.tracks.filter((t) => !t.bad).length;
     el.plMeta.textContent = usingBuiltin
-      ? n + ' songs · list saved ' + fmtDate(builtin.updated)
+      ? n + ' songs · last change ' + fmtDate(builtin.updated) + ' · checked daily'
       : n + ' songs · read from YouTube just now';
   }
   function fmtDate(iso) {

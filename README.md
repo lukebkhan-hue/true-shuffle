@@ -10,8 +10,12 @@ Everything is in `index.html`. There is no build step and no server code.
 ## Using it
 
 Open the page and press play. The "Chunes" playlist is built in, so there is
-nothing to paste. Its song list is baked into `index.html`; when songs are added
-or removed on YouTube, refresh it and push again:
+nothing to paste. Its song list is baked into `index.html` and refreshed
+automatically once a day (09:00 UTC) by the GitHub Actions workflow, which
+commits the new list and redeploys only when songs were added or removed.
+To refresh sooner, open the repository's **Actions** tab, pick
+"Refresh playlist and deploy" and press **Run workflow**, or run it locally
+and push:
 
 ```bash
 python update_playlist.py

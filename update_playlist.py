@@ -106,6 +106,16 @@ def main():
     pid = playlist_id_from(sys.argv[1]) if len(sys.argv) > 1 else PLAYLIST
     data = fetch(pid)
     html = INDEX.read_text(encoding="utf-8")
+    # Keep the old "updated" date when nothing changed, so a daily run leaves the file untouched.
+    old = re.search(r"<!--BUILTIN-->(.*?)<!--/BUILTIN-->", html, re.S)
+    if old:
+        try:
+            prev = json.loads(old.group(1).replace("<\\/", "</"))
+            if prev.get("id") == data["id"] and prev.get("title") == data["title"] and prev.get("videos") == data["videos"]:
+                data["updated"] = prev.get("updated", data["updated"])
+                print(f'"{data["title"]}": no change ({len(data["videos"])} songs, last updated {data["updated"]})')
+        except (ValueError, TypeError):
+            pass
     blob = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     new, n = re.subn(r"(<!--BUILTIN-->).*?(<!--/BUILTIN-->)", lambda m: m.group(1) + blob + m.group(2), html, flags=re.S)
     if n != 1:
