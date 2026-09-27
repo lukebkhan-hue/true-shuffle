@@ -9,9 +9,16 @@ Everything is in `index.html`. There is no build step and no server code.
 
 ## Using it
 
-1. Open the page.
-2. Paste a playlist link (anything containing `list=`), or just the playlist id.
-3. Press **Shuffle & play**.
+Open the page and press play. The "Chunes" playlist is built in, so there is
+nothing to paste. Its song list is baked into `index.html`; when songs are added
+or removed on YouTube, refresh it and push again:
+
+```bash
+python update_playlist.py
+```
+
+To play some other playlist once, press **Use a different playlist**, paste a
+link (anything containing `list=`), and press **Shuffle & play**.
 
 The playlist must be **public or unlisted**. Songs YouTube refuses to play
 embedded (deleted, private, or blocked by the uploader) are skipped and shown
