@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>True Shuffle</title>
+<meta name="description" content="Paste a YouTube playlist link and it plays every song in a fresh random order, re-shuffling each time it reaches the end.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f2f5f3;
+    --surface: #ffffff;
+    --surface-2: #e8eeeb;
+    --text: #17201d;
+    --muted: #63706b;
+    --line: #d9e1dd;
+    --accent: #0e8a6a;
+    --accent-ink: #ffffff;
+    --accent-soft: #d6efe6;
+    --danger: #b8402f;
+    --shadow: 0 10px 30px rgba(23, 32, 29, .10);
+    --radius: 14px;
+    --display: "Syne", "Trebuchet MS", sans-serif;
+    --body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0f1615;
+      --surface: #182120;
+      --surface-2: #202b29;
+      --text: #e6edea;
+      --muted: #8d9b96;
+      --line: #2a3634;
+      --accent: #2fcb9e;
+      --accent-ink: #0b1512;
+      --accent-soft: #1b3a32;
+      --danger: #ff7b68;
+      --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
+    padding-inline: 16px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; padding-block: 22px 40px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand svg { width: 42px; height: 42px; flex: none; }
+  .brand h1 { font-family: var(--display); font-weight: 800; font-size: 28px; letter-spacing: -.02em; margin: 0; line-height: 1; }
+  .brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+
+  form.load { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+  form.load .field { flex: 1 1 320px; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 14px; min-height: 50px; }
+  form.load .field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  form.load input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; outline: none; }
+  form.load input::placeholder { color: var(--muted); }
+  .btn { font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: var(--radius); padding: 0 18px; min-height: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .btn:hover { background: var(--surface-2); }
+  .btn:focus-visible, button:focus-visible, .row:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  details.advanced { flex-basis: 100%; font-size: 13px; color: var(--muted); }
+  details.advanced summary { cursor: pointer; user-select: none; width: max-content; }
+  details.advanced .inner { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  details.advanced input { font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); flex: 1 1 260px; }
+  details.advanced a { color: var(--accent); }
+
+  .status { min-height: 20px; font-size: 13px; color: var(--muted); }
+  .status.error { color: var(--danger); font-weight: 600; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  .stage { display: flex; flex-direction: column; gap: 16px; }
+  .player-wrap { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .player-wrap iframe, .player-wrap #player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; color: #cfd8d4; background: radial-gradient(120% 90% at 50% 110%, #1d2f2a 0%, #0b1211 70%); padding: 24px; }
+  .empty[hidden] { display: none; }
+  .empty strong { font-family: var(--display); font-size: 20px; color: #fff; }
+  .empty span { font-size: 13px; max-width: 34ch; }
+
+  .now { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: end; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .now h2 { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.2; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+  .now .by { color: var(--muted); }
+  .now .round { grid-column: 2; grid-row: 1 / span 3; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .now .round b { display: block; font-family: var(--display); font-size: 22px; color: var(--text); }
+  @media (max-width: 600px) {
+    .now { grid-template-columns: 1fr; }
+    .now h2 { font-size: 18px; overflow-wrap: normal; }
+    .now .round { grid-column: 1; grid-row: auto; text-align: left; display: flex; gap: 8px; align-items: baseline; margin-top: 4px; }
+    .now .round b { font-size: 16px; }
+  }
+
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ctl { width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .ctl svg { width: 22px; height: 22px; fill: currentColor; }
+  .ctl svg[hidden] { display: none; }
+  .ctl:hover { background: var(--surface-2); }
+  .ctl.big { width: 64px; height: 64px; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .ctl.big svg { width: 28px; height: 28px; }
+  .ctl:disabled { opacity: .45; cursor: default; }
+  .controls .spacer { flex: 1; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .hint kbd { font: inherit; font-size: 11px; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--surface); }
+
+  .queue { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; max-height: min(78vh, 760px); }
+  .queue header { padding: 14px 16px; border-bottom: 1px solid var(--line); align-items: center; }
+  .queue h3 { margin: 0; font-family: var(--display); font-size: 16px; }
+  .queue .count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .queue ol { list-style: none; margin: 0; padding: 6px; overflow-y: auto; }
+  .row { display: grid; grid-template-columns: 34px 1fr; gap: 0 10px; align-items: center; padding: 8px 8px; border-radius: 9px; cursor: pointer; border: 0; background: transparent; color: inherit; width: 100%; text-align: left; font: inherit; }
+  .row:hover { background: var(--surface-2); }
+  .row .n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+  .row .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .b { grid-column: 2; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row.pending .t { color: var(--muted); font-weight: 500; }
+  .row.bad { opacity: .5; text-decoration: line-through; }
+  .queue .foot { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .queue-empty { padding: 26px 16px; color: var(--muted); font-size: 13px; text-align: center; }
+
+  footer.note { font-size: 12px; color: var(--muted); max-width: 70ch; }
+  @media (prefers-reduced-motion: no-preference) {
+    .row, .btn, .ctl { transition: background-color .15s ease, filter .15s ease; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="2" y="2" width="44" height="44" rx="12" fill="var(--accent)"/>
+        <path d="M11 17h6.5c2.2 0 4.2 1 5.5 2.7L29.5 28c1.3 1.7 3.3 2.7 5.5 2.7H37" fill="none" stroke="var(--accent-ink)" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M11 30.7h6.5c2.2 0 4.2-1 5.5-2.7L29.5 19.7c1.3-1.7 3.3-2.7 5.5-2.7H37" fill="none" stroke="var(--accent-ink)" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M34 13l4.5 4-4.5 4M34 26.7l4.5 4-4.5 4" fill="none" stroke="var(--accent-ink)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <h1>True Shuffle</h1>
+        <p>Every song, random order, a fresh deal every round.</p>
+      </div>
+    </div>
+  </header>
+
+  <form class="load" id="loadForm" autocomplete="off">
+    <label class="field">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 12h12M4 18h7"/><path d="M18 14l3.5 2.2L18 18.4z" fill="currentColor" stroke="none"/></svg>
+      <input id="url" type="text" inputmode="url" placeholder="Paste a YouTube playlist link" aria-label="YouTube playlist link" spellcheck="false">
+    </label>
+    <button class="btn primary" id="go" type="submit">Shuffle &amp; play</button>
+    <details class="advanced" id="advanced">
+      <summary>Playlist longer than 200 songs?</summary>
+      <div class="inner">
+        <span>YouTube's player only hands over the first 200. A free <a href="https://developers.google.com/youtube/v3/getting-started" target="_blank" rel="noopener">YouTube Data API key</a> lifts that limit and loads titles instantly.</span>
+        <input id="apikey" type="text" placeholder="Optional API key (kept only in this browser)" aria-label="YouTube Data API key" spellcheck="false">
+      </div>
+    </details>
+  </form>
+  <div class="status" id="status" aria-live="polite"></div>
+
+  <main class="layout">
+    <section class="stage">
+      <div class="player-wrap">
+        <div id="player"></div>
+        <div class="empty" id="empty">
+          <strong>Nothing loaded yet</strong>
+          <span>Paste a playlist link above. It needs to be public or unlisted so the player can read it.</span>
+        </div>
+      </div>
+      <div class="now">
+        <div class="eyebrow" id="nowLabel">Now playing</div>
+        <h2 id="nowTitle">—</h2>
+        <div class="by" id="nowBy">&nbsp;</div>
+        <div class="round" id="round"></div>
+      </div>
+      <div class="controls">
+        <button class="ctl" id="prev" type="button" title="Previous (←)" aria-label="Previous" disabled>
+          <svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM19 5v14L9 12z"/></svg>
+        </button>
+        <button class="ctl big" id="play" type="button" title="Play / pause (space)" aria-label="Play" disabled>
+          <svg id="iconPlay" viewBox="0 0 24 24"><path d="M7 4v16l14-8z"/></svg>
+          <svg id="iconPause" viewBox="0 0 24 24" hidden><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+        </button>
+        <button class="ctl" id="next" type="button" title="Next (→)" aria-label="Next" disabled>
+          <svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5v14l10-7z"/></svg>
+        </button>
+        <span class="spacer"></span>
+        <button class="btn" id="reshuffle" type="button" title="Deal a new random order now (S)" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5a4 4 0 0 1 3.2 1.6l4.6 6.8A4 4 0 0 0 17.5 17H21"/><path d="M3 17h3.5a4 4 0 0 0 3.2-1.6l4.6-6.8A4 4 0 0 1 17.5 7H21"/><path d="M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>
+          Reshuffle
+        </button>
+      </div>
+      <div class="hint"><kbd>Space</kbd> play / pause &nbsp; <kbd>→</kbd> next &nbsp; <kbd>←</kbd> previous &nbsp; <kbd>S</kbd> reshuffle. Media keys on your keyboard work too.</div>
+    </section>
+
+    <aside class="queue" aria-label="Up next">
+      <header>
+        <h3>Up next</h3>
+        <span class="count" id="queueCount"></span>
+      </header>
+      <ol id="queue"><li class="queue-empty">The shuffled order shows up here. Click any song to play it next.</li></ol>
+      <div class="foot" id="queueFoot">When the round ends, the whole playlist is re-shuffled and keeps going. The same song never plays twice in a row.</div>
+    </aside>
+  </main>
+
+  <footer class="note">
+    Songs that YouTube won't play embedded (deleted, private, or blocked by the uploader) are skipped automatically and shown crossed out. Your playlist link and API key are remembered in this browser only.
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const el = {
+    form: $('#loadForm'), url: $('#url'), go: $('#go'), apikey: $('#apikey'), advanced: $('#advanced'),
+    status: $('#status'), empty: $('#empty'), nowLabel: $('#nowLabel'), nowTitle: $('#nowTitle'), nowBy: $('#nowBy'),
+    round: $('#round'), prev: $('#prev'), play: $('#play'), next: $('#next'), reshuffle: $('#reshuffle'),
+    iconPlay: $('#iconPlay'), iconPause: $('#iconPause'), queue: $('#queue'), queueCount: $('#queueCount'),
+  };
+
+  // ---------- tiny persistent store (per browser; never required to work)
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('ts.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('ts.' + k, JSON.stringify(v)); } catch {} },
+  };
+  const titleCache = store.get('titles', {});
+  let cacheDirty = false;
+  const saveCache = () => { if (cacheDirty) { store.set('titles', titleCache); cacheDirty = false; } };
+  setInterval(saveCache, 5000);
+
+  // ---------- state
+  const S = {
+    playlistId: null, playlistTitle: '',
+    tracks: [],          // [{ id, title, by, bad }]
+    order: [],           // indexes into tracks for the current round
+    pos: -1, round: 0, playedTotal: 0,
+    loading: false, errorsInARow: 0, watchdog: null, wantPlay: false,
+  };
+  let player = null, playerReady = false;
+  const readyQueue = [];
+  const whenPlayerReady = (fn) => (playerReady ? fn() : readyQueue.push(fn));
+
+  // ---------- YouTube IFrame API
+  window.onYouTubeIframeAPIReady = () => {
+    const vars = { playsinline: 1, rel: 0, iv_load_policy: 3 };
+    if (/^https?:$/.test(location.protocol)) vars.origin = location.origin;
+    player = new YT.Player('player', {
+      width: '100%', height: '100%', playerVars: vars,
+      events: { onReady, onStateChange, onError },
+    });
+  };
+  function onReady() {
+    playerReady = true;
+    readyQueue.splice(0).forEach((fn) => fn());
+  }
+  function onStateChange(e) {
+    const st = e.data;
+    if (st === YT.PlayerState.PLAYING) {
+      clearWatchdog();
+      S.errorsInARow = 0;
+      el.empty.hidden = true;
+      const d = player.getVideoData ? player.getVideoData() : null;
+      const t = current();
+      if (d && t && d.video_id === t.id && d.title) {
+        t.title = d.title; t.by = d.author || t.by;
+        remember(t);
+        renderNow(); renderQueue();
+      }
+      setPlayIcon(true);
+    } else if (st === YT.PlayerState.PAUSED) {
+      setPlayIcon(false);
+    } else if (st === YT.PlayerState.ENDED) {
+      setPlayIcon(false);
+      next(true);
+    }
+  }
+  function onError(e) {
+    // 2 bad id · 5 html5 error · 100 not found · 101/150 embedding disabled
+    const t = current();
+    if (!t || S.loading) return;
+    t.bad = true; S.errorsInARow++;
+    const playable = S.tracks.filter((x) => !x.bad).length;
+    if (!playable || S.errorsInARow > 15) {
+      setStatus('YouTube refused to play any of these songs here. Check that the playlist is public or unlisted.', true);
+      clearWatchdog();
+      return;
+    }
+    setStatus('Skipped a song YouTube will not play embedded (error ' + e.data + ').');
+    next(true);
+  }
+
+  // ---------- helpers
+  function setStatus(msg, isError) { el.status.textContent = msg || ''; el.status.classList.toggle('error', !!isError); }
+  function setPlayIcon(playing) {
+    el.iconPlay.hidden = playing; el.iconPause.hidden = !playing;
+    el.play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  }
+  const current = () => (S.pos >= 0 && S.pos < S.order.length ? S.tracks[S.order[S.pos]] : null);
+  function playlistIdFrom(text) {
+    text = (text || '').trim();
+    if (!text) return null;
+    if (/^[A-Za-z0-9_-]{10,}$/.test(text)) return text;
+    try { const u = new URL(text.includes('://') ? text : 'https://' + text); const l = u.searchParams.get('list'); if (l) return l; } catch {}
+    const m = text.match(/[?&]list=([A-Za-z0-9_-]+)/);
+    return m ? m[1] : null;
+  }
+  function shuffled(arr) {
+    const a = arr.slice();
+    const rnd = (n) => { const u = new Uint32Array(1); crypto.getRandomValues(u); return u[0] % n; };
+    for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  function remember(t) { if (t.title && t.title !== t.id) { titleCache[t.id] = { title: t.title, by: t.by || '' }; cacheDirty = true; } }
+  function clearWatchdog() { if (S.watchdog) { clearTimeout(S.watchdog); S.watchdog = null; } }
+
+  // ---------- rounds
+  function newRound() {
+    const last = current();
+    let idx = S.tracks.map((_, i) => i).filter((i) => !S.tracks[i].bad);
+    idx = shuffled(idx);
+    if (last && idx.length > 1 && S.tracks[idx[0]] === last) {
+      const k = 1 + Math.floor(Math.random() * (idx.length - 1));
+      [idx[0], idx[k]] = [idx[k], idx[0]];
+    }
+    S.order = idx; S.pos = -1; S.round++;
+  }
+  function next(auto) {
+    if (!S.tracks.length) return;
+    if (S.pos + 1 >= S.order.length) newRound();
+    S.pos++;
+    playCurrent(true);
+    if (!auto) setStatus('');
+  }
+  function prev() {
+    if (!S.tracks.length) return;
+    const t = player.getCurrentTime ? player.getCurrentTime() : 0;
+    if (t > 4 || S.pos <= 0) { player.seekTo(0, true); player.playVideo(); S.wantPlay = true; return; }
+    S.pos--;
+    playCurrent(true);
+  }
+  function playCurrent(play) {
+    const t = current();
+    if (!t) return;
+    clearWatchdog();
+    S.wantPlay = !!play;
+    if (play) { player.loadVideoById(t.id); S.playedTotal++; } else { player.cueVideoById(t.id); }
+    el.empty.hidden = true;
+    renderNow(); renderQueue(); updateMediaSession(t);
+    if (play) {
+      // A song that never starts (no error event, just silence) gets skipped after a while.
+      S.watchdog = setTimeout(() => {
+        const st = player.getPlayerState ? player.getPlayerState() : -1;
+        if (S.wantPlay && st !== YT.PlayerState.PLAYING && st !== YT.PlayerState.PAUSED && st !== YT.PlayerState.BUFFERING) {
+          t.bad = true; setStatus('Skipped a song that would not start.'); next(true);
+        }
+      }, 15000);
+    }
+  }
+  function playNextTrack(orderIndex) {
+    // Move the clicked song to right after the current one, then advance to it. Nothing gets skipped.
+    if (orderIndex <= S.pos) return;
+    const [v] = S.order.splice(orderIndex, 1);
+    S.order.splice(S.pos + 1, 0, v);
+    next(false);
+  }
+  function togglePlay() {
+    if (!S.tracks.length) return;
+    if (S.pos < 0) { next(false); return; }
+    const st = player.getPlayerState();
+    if (st === YT.PlayerState.PLAYING || st === YT.PlayerState.BUFFERING) { S.wantPlay = false; player.pauseVideo(); }
+    else { S.wantPlay = true; player.playVideo(); }
+  }
+
+  // ---------- rendering
+  function renderNow() {
+    const t = current();
+    el.nowLabel.textContent = t ? (S.wantPlay ? 'Now playing' : 'Ready to play') : 'Now playing';
+    el.nowTitle.textContent = t ? (t.title || 'Loading title…') : '—';
+    el.nowBy.textContent = t ? (t.by || (S.playlistTitle ? 'from “' + S.playlistTitle + '”' : ' ')) : ' ';
+    const total = S.tracks.filter((x) => !x.bad).length;
+    el.round.innerHTML = S.tracks.length ? '<b>' + Math.max(S.pos + 1, 0) + ' / ' + total + '</b>round ' + (S.round || 1) : '';
+    document.title = t && t.title ? t.title + ' · True Shuffle' : 'True Shuffle';
+    const have = S.tracks.length > 0;
+    el.prev.disabled = el.play.disabled = el.next.disabled = el.reshuffle.disabled = !have;
+  }
+  function renderQueue() {
+    const upcoming = S.order.slice(S.pos + 1);
+    el.queueCount.textContent = S.tracks.length ? upcoming.length + ' left this round' : '';
+    if (!S.tracks.length) {
+      el.queue.innerHTML = '<li class="queue-empty">The shuffled order shows up here. Click any song to play it next.</li>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    upcoming.forEach((ti, i) => {
+      const t = S.tracks[ti];
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'row' + (t.title ? '' : ' pending') + (t.bad ? ' bad' : '');
+      b.dataset.orderIndex = String(S.pos + 1 + i);
+      b.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="t"></span><span class="b"></span>';
+      b.querySelector('.t').textContent = t.title || 'Loading title…';
+      b.querySelector('.b').textContent = t.by || '';
+      b.title = 'Play this next';
+      li.appendChild(b);
+      frag.appendChild(li);
+    });
+    el.queue.replaceChildren(frag);
+    const want = S.pos >= 0 ? [S.order[S.pos], ...upcoming] : upcoming;
+    fetchTitles(want.map((i) => S.tracks[i]));   // current song first, then queue order
+  }
+  el.queue.addEventListener('click', (e) => {
+    const row = e.target.closest('.row');
+    if (row) playNextTrack(Number(row.dataset.orderIndex));
+  });
+
+  // ---------- titles (lazy, via oEmbed; the player fills in the current song's title itself)
+  const titleInFlight = new Set();
+  let titleWorkers = 0;
+  const titleTodo = [];
+  function fetchTitles(tracks) {
+    let hit = false;
+    for (const t of tracks) {
+      if (t.title || titleInFlight.has(t.id)) continue;
+      if (titleCache[t.id]) { t.title = titleCache[t.id].title; t.by = titleCache[t.id].by; hit = true; continue; }
+      titleInFlight.add(t.id); titleTodo.push(t);
+    }
+    if (hit) renderQueueIfIdle();
+    while (titleWorkers < 4 && titleTodo.length) { titleWorkers++; titleWorker(); }
+  }
+  let renderPending = false;
+  function renderQueueIfIdle() { if (!renderPending) { renderPending = true; requestAnimationFrame(() => { renderPending = false; renderQueue(); renderNow(); }); } }
+  async function titleWorker() {
+    while (titleTodo.length) {
+      const t = titleTodo.shift();
+      const watch = 'https://www.youtube.com/watch?v=' + t.id;
+      let info = null;
+      for (const src of ['https://noembed.com/embed?url=', 'https://www.youtube.com/oembed?format=json&url=']) {
+        try {
+          const r = await fetch(src + encodeURIComponent(watch));
+          if (r.ok) { const j = await r.json(); if (j && j.title) { info = j; break; } }
+        } catch {}
+      }
+      if (info) { t.title = info.title; t.by = info.author_name || ''; remember(t); }
+      titleInFlight.delete(t.id);
+      if (info) renderQueueIfIdle();
+    }
+    titleWorkers--;
+  }
+
+  // ---------- loading a playlist
+  async function loadPlaylist(text, autoplay) {
+    const id = playlistIdFrom(text);
+    if (!id) { setStatus('That does not look like a YouTube playlist link. It should contain "list=".', true); el.url.focus(); return; }
+    if (S.loading) return;
+    S.loading = true; el.go.disabled = true; clearWatchdog();
+    setStatus('Reading the playlist…');
+    try {
+      const key = el.apikey.value.trim();
+      const res = key ? await viaDataApi(id, key) : await viaPlayer(id);
+      S.playlistId = id; S.playlistTitle = res.title || '';
+      S.tracks = res.tracks.map((t) => ({ id: t.id, title: t.title || (titleCache[t.id] || {}).title || '', by: t.by || (titleCache[t.id] || {}).by || '', bad: false }));
+      S.order = []; S.pos = -1; S.round = 0; S.playedTotal = 0; S.errorsInARow = 0;
+      store.set('url', text.trim()); store.set('apikey', key);
+      newRound();
+      S.pos = 0;
+      playCurrent(autoplay);
+      const capped = !key && S.tracks.length >= 200;
+      setStatus(S.tracks.length + ' songs loaded' + (S.playlistTitle ? ' from “' + S.playlistTitle + '”' : '') + '.' + (capped ? ' That is the player’s 200-song cap. Add an API key below to load the rest.' : ''));
+      if (capped) el.advanced.open = true;
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    } finally {
+      S.loading = false; el.go.disabled = false;
+    }
+  }
+  function viaPlayer(id) {
+    return new Promise((resolve, reject) => {
+      whenPlayerReady(() => {
+        try { player.cuePlaylist({ list: id, listType: 'playlist' }); } catch (e) { reject(e); return; }
+        const t0 = Date.now();
+        const timer = setInterval(() => {
+          let list = null;
+          try { list = player.getPlaylist(); } catch {}
+          if (Array.isArray(list) && list.length) {
+            clearInterval(timer);
+            resolve({ title: '', tracks: list.map((v) => ({ id: v })) });
+          } else if (Date.now() - t0 > 20000) {
+            clearInterval(timer);
+            reject(new Error('YouTube did not hand over the playlist. Make sure it is public or unlisted (private playlists cannot be read here) and the link is right.'));
+          }
+        }, 250);
+      });
+    });
+  }
+  async function viaDataApi(id, key) {
+    const tracks = [];
+    let pageToken = '', title = '';
+    try {
+      const pl = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=' + encodeURIComponent(id) + '&key=' + encodeURIComponent(key)).then((r) => r.json());
+      if (pl.error) throw new Error(pl.error.message);
+      title = pl.items && pl.items[0] ? pl.items[0].snippet.title : '';
+    } catch (e) { throw new Error('API key problem: ' + e.message); }
+    do {
+      const r = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,status&maxResults=50&playlistId=' + encodeURIComponent(id) + '&key=' + encodeURIComponent(key) + '&pageToken=' + pageToken);
+      const j = await r.json();
+      if (j.error) throw new Error(j.error.message);
+      for (const it of j.items || []) {
+        const sn = it.snippet || {};
+        const vid = sn.resourceId && sn.resourceId.videoId;
+        const priv = it.status && it.status.privacyStatus === 'private';
+        if (!vid || priv || sn.title === 'Deleted video' || sn.title === 'Private video') continue;
+        tracks.push({ id: vid, title: sn.title, by: (sn.videoOwnerChannelTitle || '').replace(/ - Topic$/, '') });
+      }
+      pageToken = j.nextPageToken || '';
+    } while (pageToken);
+    if (!tracks.length) throw new Error('The playlist is empty or private.');
+    return { title, tracks };
+  }
+
+  // ---------- media keys / lock-screen controls
+  function updateMediaSession(t) {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: t.title || 'True Shuffle', artist: t.by || '', album: S.playlistTitle || 'True Shuffle',
+        artwork: [{ src: 'https://i.ytimg.com/vi/' + t.id + '/hqdefault.jpg', sizes: '480x360', type: 'image/jpeg' }],
+      });
+      navigator.mediaSession.setActionHandler('play', () => { S.wantPlay = true; player.playVideo(); });
+      navigator.mediaSession.setActionHandler('pause', () => { S.wantPlay = false; player.pauseVideo(); });
+      navigator.mediaSession.setActionHandler('nexttrack', () => next(false));
+      navigator.mediaSession.setActionHandler('previoustrack', prev);
+    } catch {}
+  }
+
+  // ---------- wiring
+  el.form.addEventListener('submit', (e) => { e.preventDefault(); loadPlaylist(el.url.value, true); });
+  el.play.addEventListener('click', togglePlay);
+  el.next.addEventListener('click', () => next(false));
+  el.prev.addEventListener('click', prev);
+  el.reshuffle.addEventListener('click', () => {
+    if (!S.tracks.length) return;
+    const cur = current();
+    newRound();
+    // keep the song that is playing as the first of the new round
+    if (cur) {
+      const ci = S.tracks.indexOf(cur);
+      const at = S.order.indexOf(ci);
+      if (at > 0) { S.order.splice(at, 1); S.order.unshift(ci); }
+      S.pos = 0;
+    } else {
+      S.pos = 0; playCurrent(false);
+    }
+    renderNow(); renderQueue();
+    setStatus('New random order dealt.');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'n') next(false);
+    else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'p') prev();
+    else if (e.key.toLowerCase() === 's') el.reshuffle.click();
+  });
+  window.addEventListener('beforeunload', saveCache);
+
+  // restore last session: same playlist, cued and ready (sound needs a click first)
+  el.apikey.value = store.get('apikey', '') || '';
+  const lastUrl = store.get('url', '');
+  if (lastUrl) { el.url.value = lastUrl; loadPlaylist(lastUrl, false); }
+  renderNow();
+})();
+</script>
+<script src="https://www.youtube.com/iframe_api" async></script>
+</body>
+</html>
